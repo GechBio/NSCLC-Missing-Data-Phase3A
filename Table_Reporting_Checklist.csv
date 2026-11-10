@@ -1,0 +1,8 @@
+"Item","Domain","Recommendation"
+1,"Reporting","Report the proportion of missingness for each clinical covariate."
+2,"Reporting","Report the distribution of missingness by key demographic and histologic strata."
+3,"Analysis","Test whether missingness is associated with the outcome; if so, treat it as informative."
+4,"Analysis","Pre-specify the primary missingness-handling strategy and justify it based on the likely mechanism."
+5,"Sensitivity","Report sensitivity analyses across at least two alternative handling strategies (e.g., complete-case and missing-retained)."
+6,"Sensitivity","Report feature-selection stability under the primary strategy and at least one alternative."
+7,"Interpretation","Avoid claiming unbiased discovery when complete-case analysis has been applied to a cohort with informative missingness."
