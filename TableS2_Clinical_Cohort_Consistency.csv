@@ -1,0 +1,4 @@
+"Item","Value","Flag","Notes"
+"Overall_KM_below_every_subgroup",FALSE,"PASS","Overall KM median cannot be below every subgroup KM median."
+"Unknown_KM_median_reached",TRUE,"PASS","If NA, the Unknown KM curve never crossed 50% (max follow-up < median)."
+"Unknown_event_rate_100pct",FALSE,"PASS","Reports whether the Unknown group is fully uncensored."

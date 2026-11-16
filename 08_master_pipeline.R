@@ -6,9 +6,10 @@
 # Platform: R 4.5.2
 # Contact:  derbew1953@gmail.com / d610113006@tmu.edu.tw
 #
-# Purpose:  Execute the entire Phase 3A pipeline sequentially from start to 
-#           finish. This script guarantees 100% reproducibility of all 
-#           manuscript results, tables, and figures for the Zenodo repository.
+# Purpose:  Execute the entire Phase 3A pipeline sequentially from start to
+#           finish. This script guarantees 100% reproducibility of all
+#           manuscript results, tables, figures, and supplementary tables
+#           for the Zenodo repository.
 #
 # ARCHITECTURE: SEQUENTIAL EXECUTION
 #   - Step 1: Base Setup & Data Assembly (Script 00)
@@ -16,14 +17,18 @@
 #   - Step 3: Empirical Figures (Scripts 03, 03b)
 #   - Step 4: Simulation Arm (Scripts 04, 04b, 05, 06)
 #   - Step 5: Reporting Checklist (Script 07)
+#   - Step 6: Supplementary Tables S1 and S2 (Script 09)
+#   - Step 7: Supplementary Table S3 (Script 10)
 #
 # Save as:  08_master_pipeline.R
 # Save in:  ~/TCGA_Local_Storage/TCGA NSCLC Project/Phase_3A/
 #
-# Input:    All raw data (from parent directory) and prior scripts (00-07)
-# Output:   All intermediate .rds files, Figures 2-6, and Table 5 (CSV)
+# Input:    All raw data (from parent directory) and prior scripts (00-10)
+# Output:   All intermediate .rds files, Figures 2-6, Table 5 (CSV),
+#           and Supplementary Tables S1-S3 (CSV)
 #
-# Dependencies: Requires scripts 00 through 07 to be in the same directory
+# Dependencies: Requires scripts 00-10 to be in the same directory,
+#               and simulation_helpers.R (helper) to be present for Step 7.
 # ==============================================================================
 
 cat("========================================================\n")
@@ -65,7 +70,15 @@ source("06_simulation_figures.R")
 cat("\n>>> EXECUTING: Script 07 (Reporting Checklist)\n")
 source("07_reporting_checklist.R")
 
+# --- Step 6: Supplementary Tables S1 and S2 (Clinical cohort disambiguation) ---
+cat("\n>>> EXECUTING: Script 09 (Clinical Cohort Disambiguation)\n")
+source("09_clinical_cohort_disambiguation.R")
+
+# --- Step 7: Supplementary Table S3 (IPW controlled test) ---
+cat("\n>>> EXECUTING: Script 10 (IPW Controlled Test, ~2 min)\n")
+source("10_ipw_controlled_test.R")
+
 cat("\n========================================================\n")
 cat("Full Phase 3A Reproduction Pipeline Complete!\n")
-cat("All tables and figures have been generated successfully.\n")
+cat("All tables, figures, and supplementary tables generated.\n")
 cat("========================================================\n")

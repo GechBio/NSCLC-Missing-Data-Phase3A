@@ -2,7 +2,7 @@
 # Script 05: Phase 3A Simulation Arm - Monte Carlo Engine 
 #
 # Author:   Getachew Derbew Belay
-# Date:     November 2026
+# Date:     November 2026 (revised)
 # Platform: R 4.5.2
 # Contact:  derbew1953@gmail.com / d610113006@tmu.edu.tw
 #
@@ -14,7 +14,7 @@
 #   MODULE 1: Environment & Dependency Management
 #       - Block 1.1: Load Required Packages
 #       - Block 1.2: Load Ground Truth Data
-#   MODULE 2: Missingness Generators
+#   MODULE 2: Missingness Generators (Two-Component Design)
 #       - Block 2.1: MCAR Generator
 #       - Block 2.2: MAR Generator
 #       - Block 2.3: MNAR Generator
@@ -33,6 +33,19 @@
 # Output:   phase3a_sim_monte_carlo_results.rds
 #
 # Dependencies: survival, dplyr
+#
+# REVISION NOTES (Nov 2026):
+#   - S4 (IPW) weights corrected: was 1 / P(missing|X), now 1 / P(observed|X).
+#     The previous direction systematically upweighted the "easy-to-observe"
+#     subjects and downweighted the "hard-to-observe" ones, inflating bias in
+#     all mechanisms. Fixed by computing weights as 1 / (1 - P(missing|X)).
+#   - S4 weights are now stabilized (mean weight ~= 1) and truncated at the
+#     99th percentile, matching the description in the manuscript ("stabilized,
+#     truncated weights").
+#   - S4 uses robust (sandwich) standard errors via cluster = row_id; the
+#     model-based SE from weighted coxph underestimates variance for IPW.
+#   - No change to S1, S2, S3. The two-component missingness design (fixed
+#     MNAR + injected mechanism) is documented in Module 2.
 # ==============================================================================
 
 # ##############################################################################
@@ -73,8 +86,26 @@ load_ground_truth <- function() {
 
 
 # ##############################################################################
-# MODULE 2: Missingness Generators
+# MODULE 2: Missingness Generators (Two-Component Design)
 # ##############################################################################
+
+# -----------------------------------------------------------------------------
+# TWO-COMPONENT MISSINGNESS DESIGN (see Methods §2.6 of manuscript)
+# -----------------------------------------------------------------------------
+# The `cohort` passed to gen_*() already contains the ORIGINAL Unknown patients
+# (n = 123, ~14.2% of N = 867). Their missingness is driven by unobserved
+# latent severity, making it MNAR by construction. On top of this FIXED MNAR
+# component, the functions below inject an ADDITIONAL 14.2% marginal
+# probability of missingness under MCAR, MAR, or MNAR. The `observed_stage`
+# column therefore mixes both sources:
+#   (1) original Unknown (fixed MNAR) — always present
+#   (2) injected Unknown (mechanism-specific) — added on top
+# This mirrors real-world TCGA data, where undocumented stage reflects both a
+# genuinely high-risk phenotype and administrative incompleteness.
+# Script 11 (verify_04 in earlier drafts) isolates the injected component by
+# removing the original Unknown patients entirely, providing the positive
+# control for S4.
+# -----------------------------------------------------------------------------
 
 # --- Block 2.1: MCAR Generator ---
 gen_mcar <- function(data, target_rate = 0.142) {
@@ -196,20 +227,41 @@ evaluate_strategy <- function(data, strategy) {
       }
       beta_unknown <- NA 
       
-      # S4: Inverse Probability Weighting
+      # S4: Inverse Probability Weighting (CORRECTED — see revision notes)
     } else if (strategy == "S4") {
       dat_full <- data
       dat_full$missing <- as.integer(dat_full$observed_stage == "Unknown")
       
+      # Propensity model: P(missing | age, histology)
       ps_model <- glm(missing ~ age + histology, data = dat_full, family = binomial)
       
-      # Drop missing, weight observed
+      # Complete-case subset (drop Unknown patients)
       dat_sub <- dat_full[dat_full$missing == 0, ]
-      ps <- predict(ps_model, newdata = dat_sub, type = "response")
-      ps <- pmax(pmin(ps, 0.99), 0.01) 
-      dat_sub$weights <- 1 / ps
+      dat_sub$observed_stage <- droplevels(dat_sub$observed_stage)
       
-      fit <- coxph(Surv(sim_time, sim_event) ~ observed_stage, data = dat_sub, weights = weights)
+      # P(missing | X) for observed subjects; truncate propensities to [0.01, 0.99]
+      p_missing <- predict(ps_model, newdata = dat_sub, type = "response")
+      p_missing <- pmax(pmin(p_missing, 0.99), 0.01)
+      
+      # CORRECTED IPW: weight = 1 / P(observed | X) = 1 / (1 - P(missing | X))
+      # (Previous version used 1 / P(missing | X), the inverse of what is needed.
+      #  That systematically upweighted the easy-to-observe subjects.)
+      # Stabilize by the marginal probability of being observed so weights
+      # have mean ~= 1, reducing variance without changing the point estimate.
+      p_obs_marginal <- mean(dat_full$missing == 0)
+      dat_sub$weights <- p_obs_marginal / (1 - p_missing)
+      
+      # Truncate extreme weights at the 99th percentile (stability)
+      w_cap <- as.numeric(quantile(dat_sub$weights, 0.99, na.rm = TRUE))
+      dat_sub$weights <- pmin(dat_sub$weights, w_cap)
+      
+      # Weighted Cox with ROBUST (sandwich) standard errors.
+      # The model-based SE from weighted coxph underestimates variance for IPW,
+      # so we cluster on unique row IDs to obtain the robust variance.
+      dat_sub$row_id <- seq_len(nrow(dat_sub))
+      fit <- coxph(Surv(sim_time, sim_event) ~ observed_stage,
+                   data = dat_sub, weights = weights, cluster = row_id)
+      
       beta_unknown <- NA 
       beta_adv <- coef(fit)["observed_stageAdvanced"]
       se_adv <- sqrt(vcov(fit)["observed_stageAdvanced", "observed_stageAdvanced"])
@@ -334,5 +386,10 @@ run_simulation_pipeline <- function() {
   cat("========================================================\n")
 }
 
-# Execute the Master Pipeline
-run_simulation_pipeline()
+# Execute the Master Pipeline unless a sourcing script has opted out.
+# Scripts 10 and 11 source this file only for its missingness generators and
+# evaluate_strategy(); they set options(phase3a.mc_execute = FALSE) before
+# sourcing to prevent the full Monte Carlo from re-running.
+if (isTRUE(getOption("phase3a.mc_execute", default = TRUE))) {
+  run_simulation_pipeline()
+}

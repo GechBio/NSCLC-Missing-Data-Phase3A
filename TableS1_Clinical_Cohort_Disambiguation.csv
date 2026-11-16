@@ -1,0 +1,5 @@
+"Group","N","Events","Event_Rate","KM_Median","KM_Median_Lower","KM_Median_Upper","Obs_Median","Obs_IQR"
+"Overall",867,374,0.4314,1379,1215,1632,660,788.5
+"Early",603,188,0.3118,1984,1695,2639,677,763.5
+"Advanced",141,70,0.4965,976,803,1790,625,859
+"Unknown",123,116,0.9431,692,598,949,667,778
